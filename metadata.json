@@ -1,0 +1,5 @@
+{
+  "name": "Streamline Video Review",
+  "description": "A professional video collaboration tool allowing frame-accurate annotations, drawing on video, and team feedback tracking.",
+  "requestFramePermissions": []
+}
