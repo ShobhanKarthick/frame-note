@@ -3,11 +3,21 @@ import { VideoPlayer, VideoPlayerRef } from './components/VideoPlayer';
 import { Timeline } from './components/Timeline';
 import { Sidebar } from './components/Sidebar';
 import { Button } from './components/ui/Button';
-import { Annotation, DrawingPath, Attachment } from './types';
-import { CURRENT_USER, getAnnotations, saveAnnotation } from './services/storage';
-import { Pen, Upload, Play, Pause, MousePointer2, Moon, Sun, Captions, CaptionsOff, Trash2 } from 'lucide-react';
-
-const generateId = () => Math.random().toString(36).substring(2, 15);
+import { UserOnboardingModal } from './components/UserOnboardingModal';
+import { Annotation, Attachment, User } from './types';
+import { 
+  getAnnotations, 
+  saveAnnotation, 
+  createUser, 
+  getStoredUser, 
+  getUser,
+  exportAnnotations,
+  importAnnotations,
+  downloadExportAsFile,
+  ExportData
+} from './services/api';
+import { generateFastFileHash, generateFileHash } from './utils/hash';
+import { Pen, Upload, Play, Pause, MousePointer2, Moon, Sun, Captions, CaptionsOff, Trash2, Download, FileUp } from 'lucide-react';
 
 // Medblocks Logo Component
 const MedblocksLogo = () => (
@@ -23,8 +33,14 @@ export default function App() {
   // Theme State
   const [isDarkMode, setIsDarkMode] = useState(true);
 
+  // User State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isUserLoading, setIsUserLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   // Video State
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [videoId, setVideoId] = useState<string | null>(null);
   const [subtitleSrc, setSubtitleSrc] = useState<string | null>(null);
   const [isCaptionsEnabled, setIsCaptionsEnabled] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -43,6 +59,7 @@ export default function App() {
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
   
   const videoPlayerRef = useRef<VideoPlayerRef>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   // Theme Effect
   useEffect(() => {
@@ -53,14 +70,52 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // Load annotations when video loads
+  // Check for existing user on mount
   useEffect(() => {
-    if (videoSrc) {
-      setTimeout(() => {
-        setAnnotations(getAnnotations(videoSrc));
-      }, 100);
+    const initUser = async () => {
+      const storedUser = getStoredUser();
+      if (storedUser) {
+        // Verify user still exists in database
+        const dbUser = await getUser(storedUser.id);
+        if (dbUser) {
+          setCurrentUser(dbUser);
+        } else {
+          // User doesn't exist in DB, show onboarding
+          setShowOnboarding(true);
+        }
+      } else {
+        setShowOnboarding(true);
+      }
+      setIsUserLoading(false);
+    };
+    initUser();
+  }, []);
+
+  // Load annotations when video loads (using content hash as ID)
+  useEffect(() => {
+    if (videoId) {
+      const loadAnnotations = async () => {
+        const loaded = await getAnnotations(videoId);
+        setAnnotations(loaded);
+      };
+      loadAnnotations();
     }
-  }, [videoSrc]);
+  }, [videoId]);
+
+  // Handle user creation from onboarding
+  const handleUserCreate = async (name: string) => {
+    try {
+      setIsUserLoading(true);
+      const user = await createUser(name);
+      setCurrentUser(user);
+      setShowOnboarding(false);
+    } catch (error) {
+      console.error('Failed to create user:', error);
+      alert('Failed to create user. Please make sure the server is running.');
+    } finally {
+      setIsUserLoading(false);
+    }
+  };
 
   // Handle Range Selection from Timeline
   const handleRangeSelect = (range: { start: number; end: number } | null) => {
@@ -101,8 +156,8 @@ export default function App() {
       videoPlayerRef.current?.clearCanvas();
   }
 
-  const handleAddComment = (text: string, attachments: Attachment[]) => {
-    if (!videoSrc) return;
+  const handleAddComment = async (text: string, attachments: Attachment[]) => {
+    if (!videoId || !currentUser) return;
 
     // Get Drawing Data from Fabric via Ref
     const currentDrawing = videoPlayerRef.current?.getCanvasJSON();
@@ -119,34 +174,87 @@ export default function App() {
         end = Math.min(start + 1, duration);
     }
 
-    const newAnnotation: Annotation = {
-      id: generateId(),
-      videoId: videoSrc,
-      startTime: start,
-      endTime: end,
-      author: CURRENT_USER,
-      text: text,
-      createdAt: Date.now(),
-      type: currentDrawing ? 'drawing' : 'comment',
-      drawingData: currentDrawing || undefined, // Store the full Fabric JSON
-      attachments: attachments
-    };
+    try {
+      const newAnnotation = await saveAnnotation({
+        videoId: videoId,
+        userId: currentUser.id,
+        startTime: start,
+        endTime: end,
+        author: currentUser,
+        text: text,
+        type: currentDrawing ? 'drawing' : 'comment',
+        drawingData: currentDrawing || undefined,
+        attachments: attachments
+      });
 
-    saveAnnotation(newAnnotation);
-    setAnnotations(prev => [...prev, newAnnotation].sort((a, b) => a.startTime - b.startTime));
-    
-    // Select the new annotation and seek to its start to ensure it's visible immediately
-    setActiveAnnotationId(newAnnotation.id);
-    videoPlayerRef.current?.seekTo(start);
-    setCurrentTime(start);
-    setSelectionRange({ start, end });
-    
-    // Reset drawing mode
-    if (selectedTool === 'pen') {
-      handleToolChange('pointer');
-    } else {
-        // Clear the canvas if we just submitted a drawing
-        videoPlayerRef.current?.clearCanvas();
+      setAnnotations(prev => [...prev, newAnnotation].sort((a, b) => a.startTime - b.startTime));
+      
+      // Select the new annotation and seek to its start to ensure it's visible immediately
+      setActiveAnnotationId(newAnnotation.id);
+      videoPlayerRef.current?.seekTo(start);
+      setCurrentTime(start);
+      setSelectionRange({ start, end });
+      
+      // Reset drawing mode
+      if (selectedTool === 'pen') {
+        handleToolChange('pointer');
+      } else {
+          // Clear the canvas if we just submitted a drawing
+          videoPlayerRef.current?.clearCanvas();
+      }
+    } catch (error) {
+      console.error('Failed to save annotation:', error);
+      alert('Failed to save annotation. Please make sure the server is running.');
+    }
+  };
+
+  // Export annotations as JSON
+  const handleExport = async () => {
+    if (!videoId) return;
+    try {
+      const data = await exportAnnotations(videoId);
+      downloadExportAsFile(data);
+    } catch (error) {
+      console.error('Failed to export:', error);
+      alert('Failed to export annotations.');
+    }
+  };
+
+  // Import annotations from JSON
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !videoId || !currentUser) return;
+
+    try {
+      const text = await file.text();
+      const data: ExportData = JSON.parse(text);
+
+      // Validate video hash matches
+      if (data.videoHash !== videoId) {
+        const confirm = window.confirm(
+          `Warning: The imported annotations are for a different video.\n\n` +
+          `Import file hash: ${data.videoHash.substring(0, 16)}...\n` +
+          `Current video hash: ${videoId.substring(0, 16)}...\n\n` +
+          `Do you want to import anyway?`
+        );
+        if (!confirm) return;
+      }
+
+      const result = await importAnnotations(videoId, data.annotations, currentUser.id);
+      
+      // Reload annotations
+      const loaded = await getAnnotations(videoId);
+      setAnnotations(loaded);
+      
+      alert(`Successfully imported ${result.imported} annotations!`);
+    } catch (error) {
+      console.error('Failed to import:', error);
+      alert('Failed to import annotations. Make sure the file is valid JSON.');
+    }
+
+    // Reset input
+    if (importInputRef.current) {
+      importInputRef.current.value = '';
     }
   };
 
@@ -164,11 +272,15 @@ export default function App() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Generate content hash for unique identification across machines
+      const hash = await generateFastFileHash(file);
+      
       const url = URL.createObjectURL(file);
       setVideoSrc(url);
+      setVideoId(hash); // Use hash as the unique video identifier
       setSubtitleSrc(null); 
       setAnnotations([]); 
       setIsPlaying(false);
@@ -309,10 +421,33 @@ export default function App() {
                 </div>
              )}
 
-             <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800/50 px-3 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-700/50">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"/>
-                <span className="text-xs text-zinc-600 dark:text-zinc-400">Collaborating as {CURRENT_USER.name}</span>
+             {/* Export/Import Buttons */}
+             <div className="flex items-center gap-1">
+                <button
+                  onClick={handleExport}
+                  className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors"
+                  title="Export Annotations (JSON)"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <label className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors cursor-pointer" title="Import Annotations (JSON)">
+                  <FileUp className="w-4 h-4" />
+                  <input 
+                    type="file" 
+                    accept=".json" 
+                    className="hidden" 
+                    ref={importInputRef}
+                    onChange={handleImportFile} 
+                  />
+                </label>
              </div>
+
+             {currentUser && (
+               <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800/50 px-3 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-700/50">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"/>
+                  <span className="text-xs text-zinc-600 dark:text-zinc-400">Collaborating as {currentUser.name}</span>
+               </div>
+             )}
              </>
           )}
         </div>
@@ -432,18 +567,28 @@ export default function App() {
         </div>
 
         {/* Right Sidebar */}
-        <Sidebar
-          annotations={annotations}
-          currentTime={currentTime}
-          selectionRange={selectionRange}
-          currentUser={CURRENT_USER}
-          onAnnotationSelect={handleAnnotationSelect}
-          onAddComment={handleAddComment}
-          activeAnnotationId={activeAnnotationId || undefined}
-          isDrawingMode={isDrawingMode}
-        />
+        {currentUser && (
+          <Sidebar
+            annotations={annotations}
+            currentTime={currentTime}
+            selectionRange={selectionRange}
+            currentUser={currentUser}
+            onAnnotationSelect={handleAnnotationSelect}
+            onAddComment={handleAddComment}
+            activeAnnotationId={activeAnnotationId || undefined}
+            isDrawingMode={isDrawingMode}
+          />
+        )}
         
       </main>
+
+      {/* User Onboarding Modal */}
+      {showOnboarding && (
+        <UserOnboardingModal 
+          onComplete={handleUserCreate}
+          isLoading={isUserLoading}
+        />
+      )}
     </div>
   );
 }

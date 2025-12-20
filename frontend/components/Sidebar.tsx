@@ -47,14 +47,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setAttachments([]);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
           const file = e.target.files[0];
+          
+          // Convert file to base64
+          const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file); // This creates a base64 data URL
+          });
+          
           const newAttachment: Attachment = {
               id: Math.random().toString(36).substring(7),
               name: file.name,
               type: file.type.startsWith('image/') ? 'image' : 'file',
-              url: URL.createObjectURL(file)
+              url: base64 // Store as base64 data URL instead of blob URL
           };
           setAttachments(prev => [...prev, newAttachment]);
       }
@@ -103,11 +112,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <img 
-                    src={ann.author.avatar} 
-                    alt={ann.author.name} 
-                    className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-zinc-800"
-                  />
+                  {ann.author.avatar ? (
+                    <img 
+                      src={ann.author.avatar} 
+                      alt={ann.author.name} 
+                      className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-zinc-800"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full ring-2 ring-white dark:ring-zinc-800 bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">
+                      {ann.author.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{ann.author.name}</span>
                 </div>
                 <div className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${

@@ -1,13 +1,13 @@
 export interface User {
   id: string;
   name: string;
-  avatar: string;
+  avatar?: string; // Optional - generated on frontend if not provided
 }
 
 export interface Attachment {
   id: string;
   type: 'image' | 'file';
-  url: string;
+  url: string; // Base64 data URL (e.g., "data:image/png;base64,...")
   name: string;
 }
 
