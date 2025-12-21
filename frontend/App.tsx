@@ -391,13 +391,6 @@ export default function App() {
             {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
 
-          {!videoSrc && (
-            <label className="cursor-pointer bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-200 px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 border border-zinc-200 dark:border-zinc-700">
-              <Upload className="w-4 h-4" />
-              <span>Upload Video</span>
-              <input type="file" accept="video/*" className="hidden" onChange={handleFileUpload} />
-            </label>
-          )}
           {videoSrc && (
              <>
              {!subtitleSrc ? (
