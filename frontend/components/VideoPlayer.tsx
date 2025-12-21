@@ -15,6 +15,7 @@ interface VideoPlayerProps {
   currentTime: number;
   // We now receive a single drawing object to render (active annotation), or null
   activeDrawing: DrawingPath | null;
+  playbackSpeed?: number;
   onTimeUpdate: (time: number) => void;
   onDurationChange: (duration: number) => void;
   togglePlay: () => void;
@@ -34,6 +35,7 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
   isPaused,
   currentTime,
   activeDrawing,
+  playbackSpeed = 1,
   onTimeUpdate,
   onDurationChange,
   togglePlay
@@ -203,6 +205,13 @@ export const VideoPlayer = forwardRef<VideoPlayerRef, VideoPlayerProps>(({
     const timer = setTimeout(updateTrackMode, 100);
     return () => clearTimeout(timer);
   }, [subtitleSrc, isCaptionsEnabled]);
+
+  // Handle Playback Speed
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed]);
 
   return (
     <div 

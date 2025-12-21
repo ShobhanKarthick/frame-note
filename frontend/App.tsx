@@ -52,6 +52,10 @@ export default function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  
+  // Available playback speeds
+  const PLAYBACK_SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
   
   // App Mode State
   const [isDrawingMode, setIsDrawingMode] = useState(false);
@@ -66,6 +70,91 @@ export default function App() {
   
   const videoPlayerRef = useRef<VideoPlayerRef>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcuts for video control and time range selection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      
+      if (!videoSrc) return;
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault(); // Prevent page scroll
+          setIsPlaying(prev => !prev);
+          break;
+        
+        case 'ArrowLeft':
+          // Jump back 5 seconds
+          e.preventDefault();
+          const newTimeBack = Math.max(0, currentTime - 5);
+          videoPlayerRef.current?.seekTo(newTimeBack);
+          setCurrentTime(newTimeBack);
+          break;
+        
+        case 'ArrowRight':
+          // Jump forward 5 seconds
+          e.preventDefault();
+          const newTimeForward = Math.min(duration, currentTime + 5);
+          videoPlayerRef.current?.seekTo(newTimeForward);
+          setCurrentTime(newTimeForward);
+          break;
+        
+        case 'KeyA':
+          // Set/snap start time for range at current playhead position
+          e.preventDefault();
+          setSelectionRange(prev => {
+            const start = currentTime;
+            // If we already have an end time that's after the new start, keep it
+            const end = prev && prev.end > start ? prev.end : Math.min(start + 1, duration);
+            return { start, end };
+          });
+          break;
+        
+        case 'KeyS':
+          // Set/snap end time for range at current playhead position and pause
+          e.preventDefault();
+          setIsPlaying(false); // Pause video when setting end point
+          setSelectionRange(prev => {
+            const end = currentTime;
+            // If we already have a start time that's before the new end, keep it
+            const start = prev && prev.start < end ? prev.start : Math.max(0, end - 1);
+            return { start, end };
+          });
+          break;
+        
+        case 'KeyQ':
+          // Snap start of existing range to current position (without changing end)
+          e.preventDefault();
+          if (selectionRange && currentTime < selectionRange.end) {
+            setSelectionRange({ start: currentTime, end: selectionRange.end });
+          }
+          break;
+        
+        case 'KeyW':
+          // Snap end of existing range to current position (without changing start)
+          e.preventDefault();
+          if (selectionRange && currentTime > selectionRange.start) {
+            setSelectionRange({ start: selectionRange.start, end: currentTime });
+            setIsPlaying(false);
+          }
+          break;
+        
+        case 'Escape':
+          // Clear selection range
+          e.preventDefault();
+          setSelectionRange(null);
+          setActiveAnnotationId(null);
+          break;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [videoSrc, currentTime, duration, selectionRange]);
 
   // Theme Effect
   useEffect(() => {
@@ -199,7 +288,9 @@ export default function App() {
       setActiveAnnotationId(newAnnotation.id);
       videoPlayerRef.current?.seekTo(start);
       setCurrentTime(start);
-      setSelectionRange({ start, end });
+      
+      // Clear the selection range after adding comment
+      setSelectionRange(null);
       
       // Reset drawing mode
       if (selectedTool === 'pen') {
@@ -510,6 +601,7 @@ export default function App() {
                     currentTime={currentTime}
                     isDrawingMode={isDrawingMode}
                     activeDrawing={activeDrawing}
+                    playbackSpeed={playbackSpeed}
                     onTimeUpdate={handleTimeUpdate}
                     onDurationChange={setDuration}
                     togglePlay={togglePlay}
@@ -541,8 +633,21 @@ export default function App() {
                         {Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}
                      </span>
                    </div>
-                   <div className="w-1/3 flex justify-end">
-                      {/* Placeholder for volume/settings */}
+                   <div className="w-1/3 flex justify-end items-center gap-2">
+                      {/* Playback Speed Control */}
+                      <div className="flex items-center gap-1">
+                        <select
+                          value={playbackSpeed}
+                          onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
+                          className="bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md px-2 py-1 text-xs font-mono text-zinc-600 dark:text-zinc-300 cursor-pointer hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        >
+                          {PLAYBACK_SPEEDS.map(speed => (
+                            <option key={speed} value={speed}>
+                              {speed}x
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                    </div>
                 </div>
               </div>

@@ -27,6 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -45,6 +46,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onAddComment(newComment, attachments);
     setNewComment('');
     setAttachments([]);
+    // Blur the textarea to allow keyboard shortcuts to work again
+    textareaRef.current?.blur();
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,6 +249,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex gap-2">
             <div className="relative flex-1">
                 <textarea
+                ref={textareaRef}
                 className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 pr-10 text-sm text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-purple-600 focus:border-transparent focus:outline-none resize-none placeholder-zinc-400 dark:placeholder-zinc-600"
                 placeholder={isDrawingMode ? "Describe your drawing..." : "Add a comment... (paste images with Ctrl+V)"}
                 rows={3}
