@@ -2,14 +2,17 @@
 
 A collaborative video annotation tool that lets you add comments and drawings to videos. Annotations sync across users via a shared database — **without ever uploading the video itself**.
 
+<img width="2940" height="1676" alt="image" src="https://github.com/user-attachments/assets/383d9e76-1de3-46d5-a36f-ee60d9e5fa99" />
+
+
 ## ✨ Features
 
 - 📝 **Time-based annotations** — Add comments at specific timepoint. Comments can contain any attachments (images and PDF)
   - Select a timerange like below and comment
     <img width="2940" height="1676" alt="image" src="https://github.com/user-attachments/assets/6c97d597-aecf-414f-8063-c5ea97131183" />
+      
   - Or pick a timestamp and comment. You can add an attachment to any comment as shown below
     <img width="2940" height="1676" alt="image" src="https://github.com/user-attachments/assets/e5b73f2a-be1c-4c5c-abe8-445b0af7b1f8" />
-
 
 - 🎨 **Drawing overlay** — Draw directly on video frames
   <img width="2940" height="1674" alt="image" src="https://github.com/user-attachments/assets/8a1a5683-056e-4283-9554-9fb2c97625bf" />
