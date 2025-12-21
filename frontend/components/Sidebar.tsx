@@ -74,6 +74,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setAttachments(prev => prev.filter(a => a.id !== id));
   }
 
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (const item of items) {
+          if (item.type.startsWith('image/')) {
+              e.preventDefault();
+              const file = item.getAsFile();
+              if (!file) continue;
+
+              // Convert pasted image to base64
+              const base64 = await new Promise<string>((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result as string);
+                  reader.onerror = reject;
+                  reader.readAsDataURL(file);
+              });
+
+              const newAttachment: Attachment = {
+                  id: Math.random().toString(36).substring(7),
+                  name: `pasted-image-${Date.now()}.${file.type.split('/')[1] || 'png'}`,
+                  type: 'image',
+                  url: base64
+              };
+              setAttachments(prev => [...prev, newAttachment]);
+              break; // Only handle the first image
+          }
+      }
+  }
+
   useEffect(() => {
     commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [annotations.length]);
@@ -217,7 +247,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="relative flex-1">
                 <textarea
                 className="w-full bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 pr-10 text-sm text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-purple-600 focus:border-transparent focus:outline-none resize-none placeholder-zinc-400 dark:placeholder-zinc-600"
-                placeholder={isDrawingMode ? "Describe your drawing..." : "Add a comment..."}
+                placeholder={isDrawingMode ? "Describe your drawing..." : "Add a comment... (paste images with Ctrl+V)"}
                 rows={3}
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
@@ -227,6 +257,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     handleSubmit(e);
                     }
                 }}
+                onPaste={handlePaste}
                 />
                 <button
                     type="button"

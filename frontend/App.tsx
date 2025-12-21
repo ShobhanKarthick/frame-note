@@ -19,13 +19,19 @@ import {
 import { generateFastFileHash, generateFileHash } from './utils/hash';
 import { Pen, Upload, Play, Pause, MousePointer2, Moon, Sun, Captions, CaptionsOff, Trash2, Download, FileUp } from 'lucide-react';
 
-// Medblocks Logo Component
-const MedblocksLogo = () => (
+// Frame Note Logo Component
+const FrameNoteLogo = () => (
   <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
-    <rect x="4" y="4" width="10" height="10" rx="2" className="fill-blue-600" />
-    <rect x="4" y="18" width="10" height="10" rx="2" className="fill-blue-600" />
-    <rect x="18" y="18" width="10" height="10" rx="2" className="fill-blue-600" />
-    <rect x="18" y="4" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="2.5" className="text-blue-600" />
+    {/* Film frame */}
+    <rect x="4" y="6" width="24" height="20" rx="2" className="stroke-amber-500" strokeWidth="2" fill="none" />
+    {/* Film perforations */}
+    <rect x="6" y="9" width="3" height="4" rx="0.5" className="fill-amber-500" />
+    <rect x="6" y="19" width="3" height="4" rx="0.5" className="fill-amber-500" />
+    <rect x="23" y="9" width="3" height="4" rx="0.5" className="fill-amber-500" />
+    <rect x="23" y="19" width="3" height="4" rx="0.5" className="fill-amber-500" />
+    {/* Pencil/note icon */}
+    <path d="M13 18L18 13L20 15L15 20H13V18Z" className="fill-amber-500" />
+    <path d="M19 12L20 11C20.5 10.5 21.5 10.5 22 11C22.5 11.5 22.5 12.5 22 13L21 14L19 12Z" className="fill-amber-400" />
   </svg>
 );
 
@@ -370,10 +376,10 @@ export default function App() {
       {/* Navbar */}
       <header className="h-16 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-6 shrink-0 z-30 transition-colors">
         <div className="flex items-center gap-4">
-          <MedblocksLogo />
+          <FrameNoteLogo />
           <div>
-             <h1 className="font-bold text-lg leading-tight tracking-tight text-zinc-900 dark:text-white">Medblocks</h1>
-             <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Video Reviewer</p>
+             <h1 className="font-bold text-lg leading-tight tracking-tight text-zinc-900 dark:text-white">Frame Note</h1>
+             <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold">Video Annotations</p>
           </div>
         </div>
 

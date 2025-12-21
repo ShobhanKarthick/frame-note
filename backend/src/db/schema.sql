@@ -1,5 +1,5 @@
 -- Note: When using Docker, the database is created via POSTGRES_DB env var
--- For manual setup, run: CREATE DATABASE video_reviewer;
+-- For manual setup, run: CREATE DATABASE frame_note;
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (

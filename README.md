@@ -1,4 +1,4 @@
-# 🎬 Video Reviewer
+# 🎬 Frame Note
 
 A collaborative video annotation tool that lets you add comments and drawings to videos. Annotations sync across users via a shared database — **without ever uploading the video itself**.
 
@@ -35,22 +35,13 @@ A collaborative video annotation tool that lets you add comments and drawings to
 
 ```bash
 # Option A: Use Docker (recommended)
-docker run -d \
-  --name video_reviewer_db \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=video_reviewer \
-  -p 5432:5432 \
-  postgres:16-alpine
-
-# Initialize schema
-docker exec -i video_reviewer_db psql -U postgres -d video_reviewer < backend/src/db/schema.sql
+POSTGRES_PORT=5432 docker-compose up -d postgres
 ```
 
 ```bash
 # Option B: Use existing PostgreSQL
-createdb video_reviewer
-psql -d video_reviewer -f backend/src/db/schema.sql
+createdb frame_note
+psql -d frame_note -f backend/src/db/schema.sql
 ```
 
 ### 2️⃣ Start the Backend
@@ -108,7 +99,7 @@ docker compose up -d --build
 ## 📁 Project Structure
 
 ```
-video-reviewer/
+frame-note/
 ├── frontend/           # React + Vite app
 │   ├── components/     # UI components
 │   ├── services/       # API client
@@ -130,7 +121,7 @@ video-reviewer/
 | `PORT`        | `3000`          | Backend server port      |
 | `DB_HOST`     | `localhost`     | PostgreSQL host          |
 | `DB_PORT`     | `5432`          | PostgreSQL port          |
-| `DB_NAME`     | `video_reviewer`| Database name            |
+| `DB_NAME`     | `frame_note`    | Database name            |
 | `DB_USER`     | `postgres`      | Database user            |
 | `DB_PASSWORD` | `postgres`      | Database password        |
 

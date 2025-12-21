@@ -2,10 +2,10 @@ import { Annotation, User } from '../types';
 
 // In production: use relative /api (same origin)
 // In development: use localhost:3001
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 // User storage key
-const USER_STORAGE_KEY = 'video_reviewer_user';
+const USER_STORAGE_KEY = 'frame_note_user';
 
 // ============ User API ============
 

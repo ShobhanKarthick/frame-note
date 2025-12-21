@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "video-reviewer-server",
+      "name": "frame-note-server",
       "dependencies": {
         "cors": "^2.8.5",
         "express": "^4.21.0",
