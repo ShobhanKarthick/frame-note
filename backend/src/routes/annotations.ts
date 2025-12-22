@@ -121,6 +121,77 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Update an annotation
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { start_time, end_time, text } = req.body;
+    
+    // Build dynamic update query
+    const updates: string[] = [];
+    const values: any[] = [];
+    let paramIndex = 1;
+    
+    if (start_time !== undefined) {
+      updates.push(`start_time = $${paramIndex++}`);
+      values.push(start_time);
+    }
+    if (end_time !== undefined) {
+      updates.push(`end_time = $${paramIndex++}`);
+      values.push(end_time);
+    }
+    if (text !== undefined) {
+      updates.push(`text = $${paramIndex++}`);
+      values.push(text);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    values.push(id);
+    const result = await pool.query(
+      `UPDATE annotations SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+      values
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Annotation not found' });
+    }
+    
+    // Fetch with author info
+    const fullResult = await pool.query<Annotation & { author_name: string }>(
+      `SELECT a.*, u.name as author_name 
+       FROM annotations a 
+       JOIN users u ON a.user_id = u.id 
+       WHERE a.id = $1`,
+      [id]
+    );
+    
+    const row = fullResult.rows[0];
+    const response: AnnotationResponse = {
+      id: row.id,
+      video_id: row.video_id,
+      start_time: row.start_time,
+      end_time: row.end_time,
+      text: row.text,
+      type: row.type,
+      drawing_data: row.drawing_data,
+      attachments: row.attachments || [],
+      created_at: row.created_at,
+      author: {
+        id: row.user_id,
+        name: row.author_name,
+      }
+    };
+    
+    res.json(response);
+  } catch (error) {
+    console.error('Error updating annotation:', error);
+    res.status(500).json({ error: 'Failed to update annotation' });
+  }
+});
+
 // Export annotations for a video
 router.get('/export/:videoId', async (req, res) => {
   try {

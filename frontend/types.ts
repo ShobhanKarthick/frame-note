@@ -36,3 +36,9 @@ export interface VideoMetadata {
   url: string;
   duration: number;
 }
+
+export interface VisualSuggestion {
+  category: 'MEME' | 'ANIMATION' | 'ILLUSTRATION';
+  title: string;
+  description: string;
+}

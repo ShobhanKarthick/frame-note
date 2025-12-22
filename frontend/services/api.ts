@@ -1,4 +1,4 @@
-import { Annotation, User } from '../types';
+import { Annotation, User, VisualSuggestion } from '../types';
 
 // In production: use relative /api (same origin)
 // In development: use localhost:3001
@@ -135,6 +135,40 @@ export async function deleteAnnotation(id: string): Promise<void> {
   }
 }
 
+export async function updateAnnotation(
+  id: string,
+  updates: { startTime?: number; endTime?: number; text?: string }
+): Promise<Annotation> {
+  const response = await fetch(`${API_BASE}/annotations/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      start_time: updates.startTime,
+      end_time: updates.endTime,
+      text: updates.text,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update annotation');
+  }
+
+  const data = await response.json();
+
+  return {
+    id: data.id,
+    videoId: data.video_id,
+    startTime: data.start_time,
+    endTime: data.end_time,
+    author: data.author,
+    text: data.text,
+    createdAt: new Date(data.created_at).getTime(),
+    type: data.type,
+    drawingData: data.drawing_data,
+    attachments: data.attachments || [],
+  };
+}
+
 export async function clearAnnotations(videoId: string): Promise<void> {
   const response = await fetch(`${API_BASE}/annotations/video/${videoId}`, {
     method: 'DELETE',
@@ -205,5 +239,30 @@ export function downloadExportAsFile(data: ExportData, filename?: string): void 
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ============ Visual Suggestions API ============
+
+export async function getVisualSuggestions(
+  fullTranscript: string,
+  selectionTranscript: string,
+  selectionTimeRange: { start: number; end: number }
+): Promise<VisualSuggestion[]> {
+  const response = await fetch(`${API_BASE}/suggestions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fullTranscript,
+      selectionTranscript,
+      selectionTimeRange,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to get visual suggestions');
+  }
+
+  const data = await response.json();
+  return data.suggestions;
 }
 

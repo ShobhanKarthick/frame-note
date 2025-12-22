@@ -17,6 +17,7 @@ A collaborative video annotation tool that lets you add comments and drawings to
 - 🎨 **Drawing overlay** — Draw directly on video frames
   <img width="2940" height="1674" alt="image" src="https://github.com/user-attachments/assets/8a1a5683-056e-4283-9554-9fb2c97625bf" />
 
+- ✨ **AI Visual Suggestions** — Get creative ideas for memes, animations, and illustrations using Gemini AI (requires captions)
 - 👥 **Collaborative** — Share annotations across team members.
 - 🔒 **Privacy-first** — Videos stay local, only annotations are stored
 - 🔗 **Smart linking** — Videos identified by content hash (same file = same annotations)
@@ -70,10 +71,21 @@ psql -d frame_note -f backend/src/db/schema.sql
 ```bash
 cd backend
 npm install
+
+# Create .env file from example
+cp env.example .env
+
+# Edit .env and add your Gemini API key
+# GEMINI_API_KEY=your-api-key-here
+
 npm run dev
 ```
 
 The API runs at `http://localhost:3000`
+
+> **Note:** Get your Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+> 
+> The server will show `✨ Gemini AI: Enabled` when the API key is loaded correctly.
 
 ### 3️⃣ Start the Frontend
 
@@ -137,29 +149,32 @@ frame-note/
 
 ## 🔧 Environment Variables
 
-| Variable      | Default         | Description              |
-|---------------|-----------------|--------------------------|
-| `PORT`        | `3000`          | Backend server port      |
-| `DB_HOST`     | `localhost`     | PostgreSQL host          |
-| `DB_PORT`     | `5432`          | PostgreSQL port          |
-| `DB_NAME`     | `frame_note`    | Database name            |
-| `DB_USER`     | `postgres`      | Database user            |
-| `DB_PASSWORD` | `postgres`      | Database password        |
+| Variable         | Default         | Description                          |
+|------------------|-----------------|--------------------------------------|
+| `PORT`           | `3000`          | Backend server port                  |
+| `DB_HOST`        | `localhost`     | PostgreSQL host                      |
+| `DB_PORT`        | `5432`          | PostgreSQL port                      |
+| `DB_NAME`        | `frame_note`    | Database name                        |
+| `DB_USER`        | `postgres`      | Database user                        |
+| `DB_PASSWORD`    | `postgres`      | Database password                    |
+| `GEMINI_API_KEY` | -               | Google Gemini API key (for AI features) |
 
 ---
 
 ## 📡 API Endpoints
 
-| Method | Endpoint                          | Description           |
-|--------|-----------------------------------|-----------------------|
-| POST   | `/api/users`                      | Create user           |
-| GET    | `/api/users/:id`                  | Get user              |
-| PATCH  | `/api/users/:id`                  | Update user           |
-| GET    | `/api/annotations/video/:videoId` | Get video annotations |
-| POST   | `/api/annotations`                | Create annotation     |
-| DELETE | `/api/annotations/:id`            | Delete annotation     |
-| GET    | `/api/annotations/export/:videoId`| Export as JSON        |
-| POST   | `/api/annotations/import`         | Import from JSON      |
+| Method | Endpoint                          | Description                |
+|--------|-----------------------------------|----------------------------|
+| POST   | `/api/users`                      | Create user                |
+| GET    | `/api/users/:id`                  | Get user                   |
+| PATCH  | `/api/users/:id`                  | Update user                |
+| GET    | `/api/annotations/video/:videoId` | Get video annotations      |
+| POST   | `/api/annotations`                | Create annotation          |
+| PATCH  | `/api/annotations/:id`            | Update annotation          |
+| DELETE | `/api/annotations/:id`            | Delete annotation          |
+| GET    | `/api/annotations/export/:videoId`| Export as JSON             |
+| POST   | `/api/annotations/import`         | Import from JSON           |
+| POST   | `/api/suggestions`                | Get AI visual suggestions  |
 
 
 ---

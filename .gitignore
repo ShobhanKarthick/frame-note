@@ -13,6 +13,9 @@ frontend/dist-ssr
 *.local
 
 backend/node_modules
+backend/dist/*
+backend/dist/**
+backend/.env
 
 # Editor directories and files
 .vscode/*
@@ -25,3 +28,4 @@ backend/node_modules
 *.sln
 *.sw?
 
+.env

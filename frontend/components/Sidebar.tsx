@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Annotation, User, Attachment } from '../types';
 import { Button } from './ui/Button';
-import { MessageSquare, Clock, PenTool, Send, Paperclip, X, File, Image as ImageIcon } from 'lucide-react';
+import { MessageSquare, Clock, PenTool, Send, Paperclip, X, File, Image as ImageIcon, Edit2, Save } from 'lucide-react';
 
 interface SidebarProps {
   annotations: Annotation[];
@@ -10,6 +10,7 @@ interface SidebarProps {
   currentUser: User;
   onAnnotationSelect: (annotation: Annotation) => void;
   onAddComment: (text: string, attachments: Attachment[]) => void;
+  onUpdateAnnotation: (id: string, updates: { startTime?: number; endTime?: number; text?: string }) => void;
   activeAnnotationId?: string;
   isDrawingMode: boolean;
 }
@@ -20,11 +21,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectionRange,
   onAnnotationSelect,
   onAddComment,
+  onUpdateAnnotation,
   activeAnnotationId,
   isDrawingMode
 }) => {
   const [newComment, setNewComment] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [editStartTime, setEditStartTime] = useState('');
+  const [editEndTime, setEditEndTime] = useState('');
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -39,6 +45,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
       if (Math.abs(end - start) < 0.1) return formatTime(start);
       return `${formatTime(start)} - ${formatTime(end)}`;
   }
+
+  const parseTimeToSeconds = (timeStr: string): number => {
+    const parts = timeStr.split(':');
+    if (parts.length === 2) {
+      const mins = parseInt(parts[0], 10) || 0;
+      const secs = parseInt(parts[1], 10) || 0;
+      return mins * 60 + secs;
+    }
+    return 0;
+  };
+
+  const handleStartEdit = (ann: Annotation) => {
+    setEditingId(ann.id);
+    setEditText(ann.text);
+    setEditStartTime(formatTime(ann.startTime));
+    setEditEndTime(formatTime(ann.endTime));
+  };
+
+  const handleSaveEdit = (annId: string) => {
+    const startTime = parseTimeToSeconds(editStartTime);
+    const endTime = parseTimeToSeconds(editEndTime);
+    
+    onUpdateAnnotation(annId, {
+      text: editText,
+      startTime,
+      endTime,
+    });
+    
+    setEditingId(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditText('');
+    setEditStartTime('');
+    setEditEndTime('');
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,11 +176,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-sm">No comments yet.</p>
           </div>
         ) : (
-          annotations.map((ann) => (
+          annotations.map((ann) => {
+            const isEditing = editingId === ann.id;
+            
+            return (
             <div 
               key={ann.id}
-              onClick={() => onAnnotationSelect(ann)}
-              className={`group p-3 rounded-lg border transition-all cursor-pointer ${
+              onClick={() => !isEditing && onAnnotationSelect(ann)}
+              className={`group p-3 rounded-lg border transition-all ${
+                !isEditing && 'cursor-pointer'
+              } ${
                 activeAnnotationId === ann.id 
                   ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-500/50' 
                   : 'bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800'
@@ -158,44 +206,112 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
                   <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{ann.author.name}</span>
                 </div>
-                <div className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${
-                   activeAnnotationId === ann.id 
-                     ? 'bg-purple-500 text-white' 
-                     : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
-                }`}>
-                  {ann.type === 'drawing' ? <PenTool className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                  <span className="font-mono">{formatRange(ann.startTime, ann.endTime)}</span>
-                </div>
-              </div>
-              
-              <p className="text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap">
-                {ann.text}
-              </p>
-
-              {/* Attachments List */}
-              {ann.attachments && ann.attachments.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                      {ann.attachments.map(att => (
-                          <div key={att.id} className="relative group/att">
-                              {att.type === 'image' ? (
-                                  <img src={att.url} alt={att.name} className="w-16 h-16 object-cover rounded-md border border-zinc-200 dark:border-zinc-700" />
-                              ) : (
-                                  <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 flex flex-col items-center justify-center text-zinc-500">
-                                      <File className="w-6 h-6" />
-                                      <span className="text-[9px] mt-1 w-full text-center truncate px-1">{att.name}</span>
-                                  </div>
-                              )}
-                          </div>
-                      ))}
+                
+                {isEditing ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleSaveEdit(ann.id)}
+                      className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400"
+                      title="Save changes"
+                    >
+                      <Save className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400"
+                      title="Cancel"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-              )}
-              
-              <div className="mt-2 text-[10px] text-zinc-400 dark:text-zinc-500 flex justify-between items-center">
-                 <span>{new Date(ann.createdAt).toLocaleDateString()}</span>
-                 {ann.drawingData && <span className="text-emerald-500 flex items-center gap-1">Has Drawing</span>}
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEdit(ann);
+                      }}
+                      className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Edit"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <div className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${
+                      activeAnnotationId === ann.id 
+                        ? 'bg-purple-500 text-white' 
+                        : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400'
+                    }`}>
+                      {ann.type === 'drawing' ? <PenTool className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                      <span className="font-mono">{formatRange(ann.startTime, ann.endTime)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
+              
+              {isEditing ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg p-2 text-sm text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-purple-600 focus:border-transparent focus:outline-none resize-none"
+                    rows={3}
+                    placeholder="Comment text..."
+                  />
+                  <div className="flex gap-2 items-center">
+                    <div className="flex-1">
+                      <label className="text-xs text-zinc-500 dark:text-zinc-400 block mb-1">Start Time</label>
+                      <input
+                        type="text"
+                        value={editStartTime}
+                        onChange={(e) => setEditStartTime(e.target.value)}
+                        placeholder="0:00"
+                        className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1 text-sm font-mono text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-purple-600 focus:border-transparent focus:outline-none"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs text-zinc-500 dark:text-zinc-400 block mb-1">End Time</label>
+                      <input
+                        type="text"
+                        value={editEndTime}
+                        onChange={(e) => setEditEndTime(e.target.value)}
+                        placeholder="0:00"
+                        className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded px-2 py-1 text-sm font-mono text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-purple-600 focus:border-transparent focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                    {ann.text}
+                  </p>
+
+                  {/* Attachments List */}
+                  {ann.attachments && ann.attachments.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                          {ann.attachments.map(att => (
+                              <div key={att.id} className="relative group/att">
+                                  {att.type === 'image' ? (
+                                      <img src={att.url} alt={att.name} className="w-16 h-16 object-cover rounded-md border border-zinc-200 dark:border-zinc-700" />
+                                  ) : (
+                                      <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 flex flex-col items-center justify-center text-zinc-500">
+                                          <File className="w-6 h-6" />
+                                          <span className="text-[9px] mt-1 w-full text-center truncate px-1">{att.name}</span>
+                                      </div>
+                                  )}
+                              </div>
+                          ))}
+                      </div>
+                  )}
+                  
+                  <div className="mt-2 text-[10px] text-zinc-400 dark:text-zinc-500 flex justify-between items-center">
+                    <span>{new Date(ann.createdAt).toLocaleDateString()}</span>
+                    {ann.drawingData && <span className="text-emerald-500 flex items-center gap-1">Has Drawing</span>}
+                  </div>
+                </>
+              )}
             </div>
-          ))
+          )})
         )}
         <div ref={commentsEndRef} />
       </div>

@@ -4,20 +4,24 @@ import { Timeline } from './components/Timeline';
 import { Sidebar } from './components/Sidebar';
 import { Button } from './components/ui/Button';
 import { UserOnboardingModal } from './components/UserOnboardingModal';
-import { Annotation, Attachment, User } from './types';
+import { VisualSuggestionsModal } from './components/VisualSuggestionsModal';
+import { Annotation, Attachment, User, VisualSuggestion } from './types';
 import { 
   getAnnotations, 
-  saveAnnotation, 
+  saveAnnotation,
+  updateAnnotation,
   createUser, 
   getStoredUser, 
   getUser,
   exportAnnotations,
   importAnnotations,
   downloadExportAsFile,
+  getVisualSuggestions,
   ExportData
 } from './services/api';
 import { generateFastFileHash, generateFileHash } from './utils/hash';
-import { Pen, Upload, Play, Pause, MousePointer2, Moon, Sun, Captions, CaptionsOff, Trash2, Download, FileUp } from 'lucide-react';
+import { parseVTT, getTranscriptForRange, getFullTranscript, TranscriptCue, fetchAndParseVTT } from './utils/transcript';
+import { Pen, Upload, Play, Pause, MousePointer2, Moon, Sun, Captions, CaptionsOff, Trash2, Download, FileUp, Sparkles } from 'lucide-react';
 
 // Frame Note Logo Component
 const FrameNoteLogo = () => (
@@ -53,6 +57,14 @@ export default function App() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  
+  // Transcript State
+  const [transcriptCues, setTranscriptCues] = useState<TranscriptCue[]>([]);
+  
+  // Visual Suggestions State
+  const [showSuggestionsModal, setShowSuggestionsModal] = useState(false);
+  const [suggestions, setSuggestions] = useState<VisualSuggestion[]>([]);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState(false);
   
   // Available playback speeds
   const PLAYBACK_SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
@@ -369,6 +381,23 @@ export default function App() {
     }
   };
 
+  const handleUpdateAnnotation = async (id: string, updates: { startTime?: number; endTime?: number; text?: string }) => {
+    try {
+      const updated = await updateAnnotation(id, updates);
+      
+      // Update the annotations list
+      setAnnotations(prev => prev.map(ann => ann.id === id ? updated : ann).sort((a, b) => a.startTime - b.startTime));
+      
+      // Update selection range if this annotation is active
+      if (activeAnnotationId === id && updates.startTime !== undefined && updates.endTime !== undefined) {
+        setSelectionRange({ start: updates.startTime, end: updates.endTime });
+      }
+    } catch (error) {
+      console.error('Failed to update annotation:', error);
+      alert('Failed to update annotation. Please make sure the server is running.');
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -386,23 +415,70 @@ export default function App() {
     }
   };
 
-  const handleSubtitleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSubtitleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    let vttContent: string;
+
     if (file.name.endsWith('.vtt')) {
-      setSubtitleSrc(URL.createObjectURL(file));
-      setIsCaptionsEnabled(true);
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        vttContent = e.target?.result as string;
+        const blob = new Blob([vttContent], { type: 'text/vtt' });
+        setSubtitleSrc(URL.createObjectURL(blob));
+        setIsCaptionsEnabled(true);
+        
+        // Parse VTT for transcript
+        const cues = parseVTT(vttContent);
+        setTranscriptCues(cues);
+      };
+      reader.readAsText(file);
     } else {
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target?.result as string;
-        const vttContent = "WEBVTT\n\n" + content.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+        vttContent = "WEBVTT\n\n" + content.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
         const blob = new Blob([vttContent], { type: 'text/vtt' });
         setSubtitleSrc(URL.createObjectURL(blob));
         setIsCaptionsEnabled(true);
+        
+        // Parse VTT for transcript
+        const cues = parseVTT(vttContent);
+        setTranscriptCues(cues);
       };
       reader.readAsText(file);
+    }
+  };
+
+  // Handle getting visual suggestions from Gemini
+  const handleGetVisualSuggestions = async () => {
+    if (!selectionRange || transcriptCues.length === 0) return;
+
+    try {
+      setShowSuggestionsModal(true);
+      setIsSuggestionsLoading(true);
+      setSuggestions([]);
+
+      const fullTranscript = getFullTranscript(transcriptCues);
+      const selectionTranscript = getTranscriptForRange(
+        transcriptCues,
+        selectionRange.start,
+        selectionRange.end
+      );
+
+      const result = await getVisualSuggestions(
+        fullTranscript,
+        selectionTranscript,
+        selectionRange
+      );
+
+      setSuggestions(result);
+    } catch (error) {
+      console.error('Failed to get visual suggestions:', error);
+      alert('Failed to get visual suggestions. Please make sure the server is running and GEMINI_API_KEY is configured.');
+    } finally {
+      setIsSuggestionsLoading(false);
     }
   };
 
@@ -588,6 +664,22 @@ export default function App() {
                     </Button>
                     </>
                 )}
+                
+                {/* Visual Suggestions Button - only show when captions are loaded and selection range exists */}
+                {subtitleSrc && selectionRange && transcriptCues.length > 0 && (
+                    <>
+                    <div className="w-px h-6 bg-zinc-200 dark:bg-zinc-700 mx-1" />
+                    <Button
+                        variant="ghost"
+                        onClick={handleGetVisualSuggestions}
+                        title="Get AI Visual Suggestions"
+                        className="text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 flex items-center gap-1.5 px-3"
+                    >
+                        <Sparkles className="w-4 h-4" />
+                        <span className="text-xs font-medium hidden sm:inline">Visual Ideas</span>
+                    </Button>
+                    </>
+                )}
               </div>
 
               {/* Video Container */}
@@ -679,6 +771,7 @@ export default function App() {
             currentUser={currentUser}
             onAnnotationSelect={handleAnnotationSelect}
             onAddComment={handleAddComment}
+            onUpdateAnnotation={handleUpdateAnnotation}
             activeAnnotationId={activeAnnotationId || undefined}
             isDrawingMode={isDrawingMode}
           />
@@ -691,6 +784,16 @@ export default function App() {
         <UserOnboardingModal 
           onComplete={handleUserCreate}
           isLoading={isUserLoading}
+        />
+      )}
+
+      {/* Visual Suggestions Modal */}
+      {showSuggestionsModal && selectionRange && (
+        <VisualSuggestionsModal
+          suggestions={suggestions}
+          isLoading={isSuggestionsLoading}
+          onClose={() => setShowSuggestionsModal(false)}
+          timeRange={selectionRange}
         />
       )}
     </div>

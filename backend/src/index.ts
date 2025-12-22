@@ -1,9 +1,11 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import usersRouter from './routes/users.js';
 import annotationsRouter from './routes/annotations.js';
+import suggestionsRouter from './routes/suggestions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +21,7 @@ app.use(express.json({ limit: '50mb' })); // Large limit for drawing data
 // API Routes
 app.use('/api/users', usersRouter);
 app.use('/api/annotations', annotationsRouter);
+app.use('/api/suggestions', suggestionsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -54,6 +57,15 @@ app.listen(PORT, () => {
   console.log(`   DELETE /api/annotations/:id - Delete annotation`);
   console.log(`   GET    /api/annotations/export/:videoId - Export JSON`);
   console.log(`   POST   /api/annotations/import - Import JSON`);
+  console.log(`   POST   /api/suggestions     - Get AI visual suggestions`);
+  
+  // Check if Gemini API key is configured
+  if (process.env.GEMINI_API_KEY) {
+    console.log(`✨ Gemini AI: Enabled (API key loaded)`);
+  } else {
+    console.log(`⚠️  Gemini AI: Disabled (GEMINI_API_KEY not set in .env)`);
+  }
+  
   if (isProduction) {
     console.log(`🌐 Frontend: http://localhost:${PORT}/`);
   }
