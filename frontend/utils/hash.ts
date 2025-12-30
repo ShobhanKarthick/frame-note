@@ -1,17 +1,15 @@
+import { sha256 } from 'js-sha256';
+
 /**
  * Generates a SHA-256 hash of a file's content.
  * This creates a unique fingerprint that's the same across all machines,
  * regardless of file name, path, or operating system.
+ * 
+ * Uses js-sha256 which works in any context (HTTP, HTTPS, localhost).
  */
 export async function generateFileHash(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-  
-  // Convert to hex string
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  return hashHex;
+  return sha256(buffer);
 }
 
 /**
@@ -55,8 +53,5 @@ export async function generateFastFileHash(file: File): Promise<string> {
     offset += chunk.byteLength;
   }
   
-  const hashBuffer = await crypto.subtle.digest('SHA-256', combined);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return sha256(combined);
 }
-
