@@ -10,6 +10,7 @@ import {
   getAnnotations, 
   saveAnnotation,
   updateAnnotation,
+  deleteAnnotation,
   createUser, 
   getStoredUser, 
   getUser,
@@ -263,7 +264,7 @@ export default function App() {
       videoPlayerRef.current?.clearCanvas();
   }
 
-  const handleAddComment = async (text: string, attachments: Attachment[]) => {
+  const handleAddComment = async (text: string, attachments: Attachment[], parentId?: string) => {
     if (!videoId || !currentUser) return;
 
     // Get Drawing Data from Fabric via Ref
@@ -281,10 +282,20 @@ export default function App() {
         end = Math.min(start + 1, duration);
     }
 
+    // If this is a reply, inherit the parent's time range
+    if (parentId) {
+      const parent = annotations.find(a => a.id === parentId);
+      if (parent) {
+        start = parent.startTime;
+        end = parent.endTime;
+      }
+    }
+
     try {
       const newAnnotation = await saveAnnotation({
         videoId: videoId,
         userId: currentUser.id,
+        parentId: parentId,
         startTime: start,
         endTime: end,
         author: currentUser,
@@ -395,6 +406,24 @@ export default function App() {
     } catch (error) {
       console.error('Failed to update annotation:', error);
       alert('Failed to update annotation. Please make sure the server is running.');
+    }
+  };
+
+  const handleDeleteAnnotation = async (id: string) => {
+    try {
+      await deleteAnnotation(id);
+      
+      // Remove the annotation and any replies from the list
+      setAnnotations(prev => prev.filter(ann => ann.id !== id && ann.parentId !== id));
+      
+      // Clear active annotation if it was deleted
+      if (activeAnnotationId === id) {
+        setActiveAnnotationId(null);
+        setSelectionRange(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete annotation:', error);
+      alert('Failed to delete annotation. Please make sure the server is running.');
     }
   };
 
@@ -772,6 +801,7 @@ export default function App() {
             onAnnotationSelect={handleAnnotationSelect}
             onAddComment={handleAddComment}
             onUpdateAnnotation={handleUpdateAnnotation}
+            onDeleteAnnotation={handleDeleteAnnotation}
             activeAnnotationId={activeAnnotationId || undefined}
             isDrawingMode={isDrawingMode}
           />

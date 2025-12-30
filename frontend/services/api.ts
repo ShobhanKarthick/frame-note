@@ -74,6 +74,7 @@ export async function getAnnotations(videoId: string): Promise<Annotation[]> {
     return data.map((ann: any) => ({
       id: ann.id,
       videoId: ann.video_id,
+      parentId: ann.parent_id,
       startTime: ann.start_time,
       endTime: ann.end_time,
       author: ann.author,
@@ -90,19 +91,22 @@ export async function getAnnotations(videoId: string): Promise<Annotation[]> {
 }
 
 export async function saveAnnotation(annotation: Omit<Annotation, 'id' | 'createdAt'> & { userId: string }): Promise<Annotation> {
+  const requestBody = {
+    video_id: annotation.videoId,
+    user_id: annotation.userId,
+    parent_id: annotation.parentId,
+    start_time: annotation.startTime,
+    end_time: annotation.endTime,
+    text: annotation.text,
+    type: annotation.type,
+    drawing_data: annotation.drawingData,
+    attachments: annotation.attachments,
+  };
+  
   const response = await fetch(`${API_BASE}/annotations`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      video_id: annotation.videoId,
-      user_id: annotation.userId,
-      start_time: annotation.startTime,
-      end_time: annotation.endTime,
-      text: annotation.text,
-      type: annotation.type,
-      drawing_data: annotation.drawingData,
-      attachments: annotation.attachments,
-    }),
+    body: JSON.stringify(requestBody),
   });
   
   if (!response.ok) {
@@ -114,6 +118,7 @@ export async function saveAnnotation(annotation: Omit<Annotation, 'id' | 'create
   return {
     id: data.id,
     videoId: data.video_id,
+    parentId: data.parent_id,
     startTime: data.start_time,
     endTime: data.end_time,
     author: data.author,
@@ -158,6 +163,7 @@ export async function updateAnnotation(
   return {
     id: data.id,
     videoId: data.video_id,
+    parentId: data.parent_id,
     startTime: data.start_time,
     endTime: data.end_time,
     author: data.author,

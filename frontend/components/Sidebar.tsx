@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Annotation, User, Attachment } from '../types';
 import { Button } from './ui/Button';
-import { MessageSquare, Clock, PenTool, Send, Paperclip, X, File, Image as ImageIcon, Edit2, Save } from 'lucide-react';
+import { MessageSquare, Clock, PenTool, Send, Paperclip, X, File, Image as ImageIcon, Edit2, Save, Trash2, Reply } from 'lucide-react';
 
 interface SidebarProps {
   annotations: Annotation[];
@@ -9,8 +9,9 @@ interface SidebarProps {
   selectionRange: { start: number; end: number } | null;
   currentUser: User;
   onAnnotationSelect: (annotation: Annotation) => void;
-  onAddComment: (text: string, attachments: Attachment[]) => void;
+  onAddComment: (text: string, attachments: Attachment[], parentId?: string) => void;
   onUpdateAnnotation: (id: string, updates: { startTime?: number; endTime?: number; text?: string }) => void;
+  onDeleteAnnotation: (id: string) => void;
   activeAnnotationId?: string;
   isDrawingMode: boolean;
 }
@@ -22,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAnnotationSelect,
   onAddComment,
   onUpdateAnnotation,
+  onDeleteAnnotation,
   activeAnnotationId,
   isDrawingMode
 }) => {
@@ -31,8 +33,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [editText, setEditText] = useState('');
   const [editStartTime, setEditStartTime] = useState('');
   const [editEndTime, setEditEndTime] = useState('');
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replyAttachments, setReplyAttachments] = useState<Attachment[]>([]);
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const replyFileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const formatTime = (seconds: number) => {
@@ -93,6 +99,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     textareaRef.current?.blur();
   };
 
+  const handleReplySubmit = (parentId: string) => {
+    if (!replyText.trim() && replyAttachments.length === 0) return;
+    onAddComment(replyText, replyAttachments, parentId);
+    setReplyText('');
+    setReplyAttachments([]);
+    setReplyingToId(null);
+  };
+
+  const handleDelete = (id: string, hasReplies: boolean) => {
+    const message = hasReplies 
+      ? 'This will delete the comment and all its replies. Are you sure?'
+      : 'Are you sure you want to delete this comment?';
+    
+    if (window.confirm(message)) {
+      onDeleteAnnotation(id);
+    }
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
           const file = e.target.files[0];
@@ -114,6 +138,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
           setAttachments(prev => [...prev, newAttachment]);
       }
       if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  const handleReplyFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+          const file = e.target.files[0];
+          
+          const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = reject;
+              reader.readAsDataURL(file);
+          });
+          
+          const newAttachment: Attachment = {
+              id: Math.random().toString(36).substring(7),
+              name: file.name,
+              type: file.type.startsWith('image/') ? 'image' : 'file',
+              url: base64
+          };
+          setReplyAttachments(prev => [...prev, newAttachment]);
+      }
+      if (replyFileInputRef.current) replyFileInputRef.current.value = '';
   }
 
   const removeAttachment = (id: string) => {
@@ -176,21 +222,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-sm">No comments yet.</p>
           </div>
         ) : (
-          annotations.map((ann) => {
+          annotations.filter(ann => !ann.parentId).map((ann) => {
             const isEditing = editingId === ann.id;
+            const isReplying = replyingToId === ann.id;
+            const replies = annotations.filter(r => r.parentId === ann.id);
+            const hasReplies = replies.length > 0;
             
             return (
-            <div 
-              key={ann.id}
-              onClick={() => !isEditing && onAnnotationSelect(ann)}
-              className={`group p-3 rounded-lg border transition-all ${
-                !isEditing && 'cursor-pointer'
-              } ${
-                activeAnnotationId === ann.id 
-                  ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-500/50' 
-                  : 'bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700/50 hover:border-zinc-300 dark:hover:border-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-              }`}
-            >
+            <div key={ann.id} className="rounded-lg border border-zinc-200 dark:border-zinc-700/50 overflow-hidden">
+              {/* Parent Comment */}
+              <div 
+                onClick={() => !isEditing && onAnnotationSelect(ann)}
+                className={`group p-3 transition-all ${
+                  !isEditing && 'cursor-pointer'
+                } ${
+                  activeAnnotationId === ann.id 
+                    ? 'bg-purple-50 dark:bg-purple-900/20' 
+                    : 'bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                }`}
+              >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
                   {ann.author.avatar ? (
@@ -235,6 +285,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       title="Edit"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(ann.id, hasReplies);
+                      }}
+                      className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                     <div className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${
                       activeAnnotationId === ann.id 
@@ -306,12 +366,235 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   
                   <div className="mt-2 text-[10px] text-zinc-400 dark:text-zinc-500 flex justify-between items-center">
                     <span>{new Date(ann.createdAt).toLocaleDateString()}</span>
-                    {ann.drawingData && <span className="text-emerald-500 flex items-center gap-1">Has Drawing</span>}
+                    <div className="flex items-center gap-2">
+                      {ann.drawingData && <span className="text-emerald-500 flex items-center gap-1">Has Drawing</span>}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReplyingToId(ann.id);
+                        }}
+                        className="flex items-center gap-1 text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition-colors"
+                      >
+                        <Reply className="w-3 h-3" />
+                        <span>Reply</span>
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
+              </div>
+
+              {/* Reply Input */}
+              {isReplying && (
+                <div className="p-3 bg-zinc-100/50 dark:bg-zinc-800/30 border-t border-zinc-200 dark:border-zinc-700">
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-2 flex items-center gap-1">
+                    <Reply className="w-3 h-3" />
+                    Replying to {ann.author.name}
+                  </div>
+                
+                {replyAttachments.length > 0 && (
+                  <div className="flex gap-2 mb-2 overflow-x-auto pb-2">
+                    {replyAttachments.map(att => (
+                      <div key={att.id} className="relative shrink-0">
+                        {att.type === 'image' ? (
+                          <img src={att.url} className="w-12 h-12 object-cover rounded border border-zinc-200 dark:border-zinc-700" />
+                        ) : (
+                          <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center rounded border border-zinc-200 dark:border-zinc-700">
+                            <File className="w-5 h-5 text-zinc-400" />
+                          </div>
+                        )}
+                        <button 
+                          type="button"
+                          onClick={() => setReplyAttachments(prev => prev.filter(a => a.id !== att.id))}
+                          className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Write a reply..."
+                      className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded-lg p-2 pr-8 text-sm text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-purple-600 focus:border-transparent focus:outline-none resize-none"
+                      rows={2}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleReplySubmit(ann.id);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => replyFileInputRef.current?.click()}
+                      className="absolute bottom-2 right-2 p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-white"
+                      title="Attach file"
+                    >
+                      <Paperclip className="w-3.5 h-3.5" />
+                    </button>
+                    <input 
+                      type="file" 
+                      ref={replyFileInputRef} 
+                      className="hidden" 
+                      onChange={handleReplyFileSelect}
+                      accept="image/*,.pdf,.doc,.docx" 
+                    />
+                  </div>
+                  <Button 
+                    onClick={() => handleReplySubmit(ann.id)}
+                    variant="primary" 
+                    size="icon"
+                    className="h-auto self-end"
+                    disabled={!replyText.trim() && replyAttachments.length === 0}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setReplyingToId(null);
+                      setReplyText('');
+                      setReplyAttachments([]);
+                    }}
+                    variant="ghost" 
+                    size="icon"
+                    className="h-auto self-end"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+              {/* Replies */}
+              {replies.length > 0 && (
+                <div className="border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/20">
+                  <div className="px-3 py-2 text-[10px] text-zinc-500 dark:text-zinc-400 uppercase tracking-wide font-medium flex items-center gap-1">
+                    <Reply className="w-3 h-3" />
+                    {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
+                  </div>
+                  <div className="space-y-0 divide-y divide-zinc-200 dark:divide-zinc-700/50">
+                    {replies.map(reply => {
+                      const isEditingReply = editingId === reply.id;
+                      
+                      return (
+                        <div
+                          key={reply.id}
+                          onClick={() => !isEditingReply && onAnnotationSelect(reply)}
+                          className={`group p-3 pl-6 transition-all text-sm ${
+                            !isEditingReply && 'cursor-pointer'
+                          } ${
+                            activeAnnotationId === reply.id 
+                              ? 'bg-purple-50 dark:bg-purple-900/20' 
+                              : 'hover:bg-zinc-100 dark:hover:bg-zinc-800/50'
+                          }`}
+                        >
+                      <div className="flex items-start justify-between mb-1">
+                        <div className="flex items-center gap-1.5">
+                          {reply.author.avatar ? (
+                            <img 
+                              src={reply.author.avatar} 
+                              alt={reply.author.name} 
+                              className="w-5 h-5 rounded-full ring-1 ring-white dark:ring-zinc-800"
+                            />
+                          ) : (
+                            <div className="w-5 h-5 rounded-full ring-1 ring-white dark:ring-zinc-800 bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white text-[10px] font-bold">
+                              {reply.author.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="text-[11px] font-medium text-zinc-700 dark:text-zinc-300">{reply.author.name}</span>
+                        </div>
+                        
+                        {!isEditingReply && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStartEdit(reply);
+                              }}
+                              className="p-0.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Edit"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(reply.id, false);
+                              }}
+                              className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {isEditingReply ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-600 rounded p-2 text-xs text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-purple-600 focus:border-transparent focus:outline-none resize-none"
+                            rows={2}
+                          />
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleSaveEdit(reply.id)}
+                              className="px-2 py-1 rounded text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              className="px-2 py-1 rounded text-xs bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                            {reply.text}
+                          </p>
+                          
+                          {reply.attachments && reply.attachments.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {reply.attachments.map(att => (
+                                <div key={att.id} className="relative">
+                                  {att.type === 'image' ? (
+                                    <img src={att.url} alt={att.name} className="w-12 h-12 object-cover rounded border border-zinc-200 dark:border-zinc-700" />
+                                  ) : (
+                                    <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700 flex flex-col items-center justify-center text-zinc-500">
+                                      <File className="w-4 h-4" />
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          <div className="mt-1 text-[9px] text-zinc-400 dark:text-zinc-500">
+                            {new Date(reply.createdAt).toLocaleDateString()}
+                          </div>
+                        </>
+                      )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          )})
+            );
+          })
         )}
         <div ref={commentsEndRef} />
       </div>

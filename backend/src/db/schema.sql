@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS annotations (
     id UUID PRIMARY KEY,
     video_id VARCHAR(64) NOT NULL,  -- SHA-256 hash of video
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    parent_id UUID REFERENCES annotations(id) ON DELETE CASCADE,  -- For replies
     start_time FLOAT NOT NULL,
     end_time FLOAT NOT NULL,
     text TEXT NOT NULL DEFAULT '',

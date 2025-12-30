@@ -20,6 +20,7 @@ export interface Annotation {
   id: string;
   video_id: string;
   user_id: string;
+  parent_id?: string | null;
   start_time: number;
   end_time: number;
   text: string;

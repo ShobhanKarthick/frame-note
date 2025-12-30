@@ -20,6 +20,7 @@ export interface DrawingPath {
 export interface Annotation {
   id: string;
   videoId: string;
+  parentId?: string;
   startTime: number; // Start of the annotation (seconds)
   endTime: number;   // End of the annotation (seconds). Equals startTime for point comments.
   author: User;

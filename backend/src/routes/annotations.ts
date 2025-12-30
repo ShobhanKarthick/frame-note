@@ -29,6 +29,7 @@ router.get('/video/:videoId', async (req, res) => {
     const annotations: AnnotationResponse[] = result.rows.map(row => ({
       id: row.id,
       video_id: row.video_id,
+      parent_id: row.parent_id,
       start_time: row.start_time,
       end_time: row.end_time,
       text: row.text,
@@ -52,7 +53,7 @@ router.get('/video/:videoId', async (req, res) => {
 // Create a new annotation
 router.post('/', async (req, res) => {
   try {
-    const { video_id, user_id, start_time, end_time, text, type, drawing_data, attachments } = req.body;
+    const { video_id, user_id, parent_id, start_time, end_time, text, type, drawing_data, attachments } = req.body;
     
     // Validation
     if (!video_id || !user_id || start_time === undefined || end_time === undefined || !type) {
@@ -60,11 +61,13 @@ router.post('/', async (req, res) => {
     }
     
     const id = uuidv4();
+    const parentIdValue = parent_id || null;
+    
     const result = await pool.query(
-      `INSERT INTO annotations (id, video_id, user_id, start_time, end_time, text, type, drawing_data, attachments)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO annotations (id, video_id, user_id, parent_id, start_time, end_time, text, type, drawing_data, attachments)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
-      [id, video_id, user_id, start_time, end_time, text || '', type, drawing_data || null, JSON.stringify(attachments || [])]
+      [id, video_id, user_id, parentIdValue, start_time, end_time, text || '', type, drawing_data || null, JSON.stringify(attachments || [])]
     );
     
     // Fetch with author info
@@ -80,6 +83,7 @@ router.post('/', async (req, res) => {
     const response: AnnotationResponse = {
       id: row.id,
       video_id: row.video_id,
+      parent_id: row.parent_id,
       start_time: row.start_time,
       end_time: row.end_time,
       text: row.text,
@@ -94,9 +98,13 @@ router.post('/', async (req, res) => {
     };
     
     res.status(201).json(response);
-  } catch (error) {
-    console.error('Error creating annotation:', error);
-    res.status(500).json({ error: 'Failed to create annotation' });
+  } catch (error: any) {
+    console.error('❌ Error creating annotation:', error);
+    console.error('❌ Full error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    res.status(500).json({ 
+      error: 'Failed to create annotation',
+      details: error?.message || String(error)
+    });
   }
 });
 
@@ -172,6 +180,7 @@ router.patch('/:id', async (req, res) => {
     const response: AnnotationResponse = {
       id: row.id,
       video_id: row.video_id,
+      parent_id: row.parent_id,
       start_time: row.start_time,
       end_time: row.end_time,
       text: row.text,
