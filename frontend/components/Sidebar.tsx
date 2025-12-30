@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Annotation, User, Attachment } from '../types';
 import { Button } from './ui/Button';
-import { MessageSquare, Clock, PenTool, Send, Paperclip, X, File, Image as ImageIcon, Edit2, Save, Trash2, Reply } from 'lucide-react';
+import { MessageSquare, Clock, PenTool, Send, Paperclip, X, File, Image as ImageIcon, Edit2, Save, Trash2, Reply, ZoomIn } from 'lucide-react';
 
 interface SidebarProps {
   annotations: Annotation[];
@@ -36,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [replyAttachments, setReplyAttachments] = useState<Attachment[]>([]);
+  const [viewingImage, setViewingImage] = useState<{ url: string; name: string } | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replyFileInputRef = useRef<HTMLInputElement>(null);
@@ -200,6 +201,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [annotations.length]);
 
+  // Close image viewer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && viewingImage) {
+        setViewingImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [viewingImage]);
+
   return (
     <div className="w-96 bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 flex flex-col h-full shrink-0 transition-colors">
       
@@ -352,7 +364,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {ann.attachments.map(att => (
                               <div key={att.id} className="relative group/att">
                                   {att.type === 'image' ? (
-                                      <img src={att.url} alt={att.name} className="w-16 h-16 object-cover rounded-md border border-zinc-200 dark:border-zinc-700" />
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setViewingImage({ url: att.url, name: att.name });
+                                        }}
+                                        className="relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500 rounded-md"
+                                      >
+                                        <img src={att.url} alt={att.name} className="w-16 h-16 object-cover rounded-md border border-zinc-200 dark:border-zinc-700" />
+                                        <div className="absolute inset-0 bg-black/0 group-hover/att:bg-black/40 rounded-md transition-all flex items-center justify-center">
+                                          <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover/att:opacity-100 transition-opacity" />
+                                        </div>
+                                      </button>
                                   ) : (
                                       <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-md border border-zinc-200 dark:border-zinc-700 flex flex-col items-center justify-center text-zinc-500">
                                           <File className="w-6 h-6" />
@@ -568,9 +592,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {reply.attachments && reply.attachments.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-1">
                               {reply.attachments.map(att => (
-                                <div key={att.id} className="relative">
+                                <div key={att.id} className="relative group/replyatt">
                                   {att.type === 'image' ? (
-                                    <img src={att.url} alt={att.name} className="w-12 h-12 object-cover rounded border border-zinc-200 dark:border-zinc-700" />
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewingImage({ url: att.url, name: att.name });
+                                      }}
+                                      className="relative cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500 rounded"
+                                    >
+                                      <img src={att.url} alt={att.name} className="w-12 h-12 object-cover rounded border border-zinc-200 dark:border-zinc-700" />
+                                      <div className="absolute inset-0 bg-black/0 group-hover/replyatt:bg-black/40 rounded transition-all flex items-center justify-center">
+                                        <ZoomIn className="w-4 h-4 text-white opacity-0 group-hover/replyatt:opacity-100 transition-opacity" />
+                                      </div>
+                                    </button>
                                   ) : (
                                     <div className="w-12 h-12 bg-zinc-100 dark:bg-zinc-800 rounded border border-zinc-200 dark:border-zinc-700 flex flex-col items-center justify-center text-zinc-500">
                                       <File className="w-4 h-4" />
@@ -689,6 +725,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Image Viewer Modal */}
+      {viewingImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setViewingImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full">
+            <button
+              onClick={() => setViewingImage(null)}
+              className="absolute -top-10 right-0 p-2 text-white/70 hover:text-white transition-colors"
+              title="Close"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img 
+              src={viewingImage.url} 
+              alt={viewingImage.name}
+              className="w-full h-full object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <div className="absolute -bottom-8 left-0 right-0 text-center text-white/70 text-sm truncate">
+              {viewingImage.name}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
