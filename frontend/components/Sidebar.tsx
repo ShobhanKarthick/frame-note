@@ -3,7 +3,7 @@ import { Annotation, User, Attachment } from '../types';
 import { uploadPendingAttachments } from '../services/api';
 import { compressImage } from '../utils/image';
 import { Button } from './ui/Button';
-import { MessageSquare, Clock, PenTool, Send, Paperclip, X, File, Image as ImageIcon, Edit2, Save, Trash2, Reply, ZoomIn, RotateCw, CheckCircle2, Circle } from 'lucide-react';
+import { MessageSquare, Clock, PenTool, Send, Paperclip, X, File, Image as ImageIcon, Edit2, Save, Trash2, Reply, ZoomIn, RotateCw, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
 
 interface SidebarProps {
   annotations: Annotation[];
@@ -17,6 +17,10 @@ interface SidebarProps {
   onRefresh?: () => Promise<void>;
   activeAnnotationId?: string;
   isDrawingMode: boolean;
+  /** Annotations for the current video are still being fetched. */
+  isLoading?: boolean;
+  /** The fetch failed; shows a retry affordance instead of the empty state. */
+  error?: string | null;
 }
 
 const SidebarComponent: React.FC<SidebarProps> = ({
@@ -29,7 +33,9 @@ const SidebarComponent: React.FC<SidebarProps> = ({
   onDeleteAnnotation,
   onRefresh,
   activeAnnotationId,
-  isDrawingMode
+  isDrawingMode,
+  isLoading = false,
+  error = null
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [typeFilter, setTypeFilter] = useState<'all' | 'comment' | 'attachment' | 'drawing'>('all');
@@ -148,6 +154,16 @@ const SidebarComponent: React.FC<SidebarProps> = ({
   );
   const totalTopLevel = useMemo(() => annotations.filter(ann => !ann.parentId).length, [annotations]);
   const isFiltered = typeFilter !== 'all' || statusFilter !== 'all' || userFilter !== 'all';
+
+  // Must account for loading/error too, or the header claims "0 items" while the
+  // list below it is still spinning.
+  const countLabel = isLoading
+    ? 'Loading…'
+    : error
+      ? '—'
+      : isFiltered
+        ? `${visibleAnnotations.length} of ${totalTopLevel} items`
+        : `${totalTopLevel} items`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -317,13 +333,30 @@ const SidebarComponent: React.FC<SidebarProps> = ({
           </select>
         </div>
         <div className="text-xs text-zinc-500 mt-2">
-          {isFiltered ? `${visibleAnnotations.length} of ${totalTopLevel} items` : `${totalTopLevel} items`}
+          {countLabel}
         </div>
       </div>
 
       {/* List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {visibleAnnotations.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-zinc-500 dark:text-zinc-400">Loading comments…</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-48 text-center px-4">
+            <AlertCircle className="w-12 h-12 mb-2 text-red-500/60" />
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-3">{error}</p>
+            <Button variant="secondary" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+              {isRefreshing ? (
+                <><RotateCw className="w-3 h-3 animate-spin mr-1" /> Retrying…</>
+              ) : (
+                'Try again'
+              )}
+            </Button>
+          </div>
+        ) : visibleAnnotations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-zinc-400 dark:text-zinc-600 text-center">
             <MessageSquare className="w-12 h-12 mb-2 opacity-20" />
             <p className="text-sm">{isFiltered ? 'No comments match the filters.' : 'No comments yet.'}</p>

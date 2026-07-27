@@ -89,7 +89,17 @@ export default function App() {
   // Data State
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
-  
+  // The video whose annotations are currently in `annotations`. Lags `videoId`
+  // while a fetch is in flight, which is what makes the loading state derivable.
+  const [loadedVideoId, setLoadedVideoId] = useState<string | null>(null);
+  const [annotationsError, setAnnotationsError] = useState<string | null>(null);
+
+  // "The annotations in state don't belong to the video we're showing" == loading.
+  // Derived rather than a separate flag so it is already true in the same commit
+  // that sets videoId (no first-frame flash of "no comments"), is false with no
+  // video loaded, and is false during a manual refresh (the list stays visible).
+  const isLoadingAnnotations = videoId !== null && loadedVideoId !== videoId;
+
   const videoPlayerRef = useRef<VideoPlayerRef>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -214,17 +224,35 @@ export default function App() {
     getDriveStatus(currentUser.id).then(setIsDriveConnected);
   }, [currentUser]);
 
-  // Re-fetch annotations for the current video (used on load and manual refresh)
+  // Fetch annotations for a video and commit the result. Stable identity ([] deps)
+  // so it is not itself the effect trigger, which lets the effect key on `videoId`
+  // while `refreshAnnotations` stays callable by the sidebar.
+  const loadAnnotations = useCallback(async (id: string) => {
+    try {
+      const loaded = await getAnnotations(id);
+      setAnnotations(loaded);
+      setAnnotationsError(null);
+      setLoadedVideoId(id);
+    } catch (error) {
+      console.error('Failed to load annotations:', error);
+      setAnnotationsError('Could not load comments.');
+      setLoadedVideoId(id); // the attempt for this video finished — stop the spinner
+    }
+  }, []);
+
+  // Load annotations when the video changes (using content hash as ID).
+  // No cancellation needed: the video source can only be picked from the empty
+  // state, so a video cannot be swapped out while a fetch is in flight.
+  useEffect(() => {
+    if (!videoId) return;
+    loadAnnotations(videoId);
+  }, [videoId, loadAnnotations]);
+
+  // Manual refresh from the sidebar.
   const refreshAnnotations = useCallback(async () => {
     if (!videoId) return;
-    const loaded = await getAnnotations(videoId);
-    setAnnotations(loaded);
-  }, [videoId]);
-
-  // Load annotations when video loads (using content hash as ID)
-  useEffect(() => {
-    refreshAnnotations();
-  }, [refreshAnnotations]);
+    await loadAnnotations(videoId);
+  }, [videoId, loadAnnotations]);
 
   // Handle user creation from onboarding
   const handleUserCreate = async (name: string) => {
@@ -378,11 +406,11 @@ export default function App() {
       }
 
       const result = await importAnnotations(videoId, data.annotations, currentUser.id);
-      
-      // Reload annotations
-      const loaded = await getAnnotations(videoId);
-      setAnnotations(loaded);
-      
+
+      // Reload annotations. loadAnnotations surfaces its own errors, so a failed
+      // reload won't be misreported as a failed import by the catch below.
+      await loadAnnotations(videoId);
+
       alert(`Successfully imported ${result.imported} annotations!`);
     } catch (error) {
       console.error('Failed to import:', error);
@@ -929,6 +957,8 @@ export default function App() {
             onRefresh={refreshAnnotations}
             activeAnnotationId={activeAnnotationId || undefined}
             isDrawingMode={isDrawingMode}
+            isLoading={isLoadingAnnotations}
+            error={annotationsError}
           />
         )}
         

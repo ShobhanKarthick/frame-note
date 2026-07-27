@@ -60,35 +60,33 @@ export function clearStoredUser(): void {
 
 // ============ Annotations API ============
 
+// Throws on failure rather than returning []: an empty array is a legitimate
+// result here (a video with no comments), so swallowing errors into one makes
+// "failed" and "empty" indistinguishable to the caller and to the user.
 export async function getAnnotations(videoId: string): Promise<Annotation[]> {
-  try {
-    const response = await fetch(`${API_BASE}/annotations/video/${videoId}`);
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch annotations');
-    }
-    
-    const data = await response.json();
-    
-    // Transform from API format to frontend format
-    return data.map((ann: any) => ({
-      id: ann.id,
-      videoId: ann.video_id,
-      parentId: ann.parent_id,
-      startTime: ann.start_time,
-      endTime: ann.end_time,
-      author: ann.author,
-      text: ann.text,
-      createdAt: new Date(ann.created_at).getTime(),
-      type: ann.type,
-      drawingData: ann.drawing_data,
-      attachments: ann.attachments || [],
-      status: ann.status,
-    }));
-  } catch (error) {
-    console.error('Error fetching annotations:', error);
-    return [];
+  const response = await fetch(`${API_BASE}/annotations/video/${videoId}`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch annotations (${response.status})`);
   }
+
+  const data = await response.json();
+
+  // Transform from API format to frontend format
+  return data.map((ann: any) => ({
+    id: ann.id,
+    videoId: ann.video_id,
+    parentId: ann.parent_id,
+    startTime: ann.start_time,
+    endTime: ann.end_time,
+    author: ann.author,
+    text: ann.text,
+    createdAt: new Date(ann.created_at).getTime(),
+    type: ann.type,
+    drawingData: ann.drawing_data,
+    attachments: ann.attachments || [],
+    status: ann.status,
+  }));
 }
 
 export async function saveAnnotation(annotation: Omit<Annotation, 'id' | 'createdAt'> & { userId: string }): Promise<Annotation> {
